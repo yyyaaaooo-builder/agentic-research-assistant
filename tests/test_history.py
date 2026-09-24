@@ -1,34 +1,39 @@
 import pytest
-from research_assistant.core.message import Message
+
 from research_assistant.core.history import History
+from research_assistant.core.message import Message
 
 
 @pytest.mark.parametrize(
-    "message, expected", [
+    "message, expected",
+    [
         pytest.param(
-            Message(role="user", content ="What is 3 * 7?"),
-            {"role":"user", "content":"What is 3 * 7?"},
-            id="user_message"
-            ),
+            Message(role="user", content="What is 3 * 7?"),
+            {"role": "user", "content": "What is 3 * 7?"},
+            id="user_message",
+        ),
         pytest.param(
             Message(role="assistant", content=""),
-            {"role":"assistant", "content":""},
-            id="empty_content"
-            ),
+            {"role": "assistant", "content": ""},
+            id="empty_content",
+        ),
         pytest.param(
-            Message(role="assistant", tool_calls=[{"id":"call_1", "function":{"name":"calculator"}}]),
-            {"role":"assistant", "tool_calls":[{"id":"call_1", "function":{"name":"calculator"}}]},
-            id="assistant_tool_call"
+            Message(
+                role="assistant", tool_calls=[{"id": "call_1", "function": {"name": "calculator"}}]
             ),
+            {
+                "role": "assistant",
+                "tool_calls": [{"id": "call_1", "function": {"name": "calculator"}}],
+            },
+            id="assistant_tool_call",
+        ),
         pytest.param(
             Message(role="tool", content="21", tool_call_id="call_1"),
-            {"role":"tool", "content":"21", "tool_call_id":"call_1"},
-            id="tool_result"
-            ),
-          
-    ]
-    )
-
+            {"role": "tool", "content": "21", "tool_call_id": "call_1"},
+            id="tool_result",
+        ),
+    ],
+)
 def test_to_dict_renders(message, expected):
     assert message.to_dict() == expected
 
@@ -43,7 +48,7 @@ def test_history_preserves_order():
     history.add_tool_result(tool_call_id="call_1", content="89")
     history.add_assistant(content="The answer is 89.")
 
-    roles=[m["role"] for m in history.to_openai_messages()]
+    roles = [m["role"] for m in history.to_openai_messages()]
     assert roles == ["system", "user", "assistant", "tool", "assistant"]
 
 

@@ -1,21 +1,21 @@
-from typing import Literal, Optional
-from pydantic import Field, BaseModel
 from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 MessageRole = Literal["user", "assistant", "system", "tool"]
 
+
 class Message(BaseModel):
     role: MessageRole
-    content: Optional[str] = None
-    tool_calls: Optional[list[dict]] = None
-    tool_call_id: Optional[str] = None
+    content: str | None = None
+    tool_calls: list[dict] | None = None
+    tool_call_id: str | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
     def to_dict(self) -> dict:
-        data = {
-            "role": self.role
-            }
+        data = {"role": self.role}
         if self.content is not None:
             data["content"] = self.content
         if self.tool_calls is not None:
@@ -23,6 +23,3 @@ class Message(BaseModel):
         if self.tool_call_id is not None:
             data["tool_call_id"] = self.tool_call_id
         return data
-
-
-
