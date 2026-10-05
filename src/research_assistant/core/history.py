@@ -14,9 +14,7 @@ class History:
     def add_user(self, content: str) -> None:
         self.add(Message(role="user", content=content))
 
-    def add_assistant(
-        self, content: str | None = None, tool_calls: list[dict] | None = None
-    ) -> None:
+    def add_assistant(self, content: str | None = None, tool_calls: list[dict] | None = None) -> None:
         self.add(Message(role="assistant", content=content, tool_calls=tool_calls))
 
     def add_tool_result(self, content: str, tool_call_id: str) -> None:

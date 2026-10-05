@@ -1,0 +1,80 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/d41JA5hwZcQw6cGp3EZj6VkzfgE</id>
+  <title>arXiv Query: search_query=all:retrieval AND all:agents&amp;id_list=&amp;start=0&amp;max_results=3</title>
+  <updated>2026-09-26T03:00:22Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=all:retrieval+AND+all:agents&amp;start=0&amp;max_results=3&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>3</opensearch:itemsPerPage>
+  <opensearch:totalResults>6181</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2603.02888v1</id>
+    <title>LLandMark: A Multi-Agent Framework for Landmark-Aware Multimodal Interactive Video Retrieval</title>
+    <updated>2026-03-03T11:36:34Z</updated>
+    <link href="https://arxiv.org/abs/2603.02888v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2603.02888v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The increasing diversity and scale of video data demand retrieval systems capable of multimodal understanding, adaptive reasoning, and domain-specific knowledge integration. This paper presents LLandMark, a modular multi-agent framework for landmark-aware multimodal video retrieval to handle real-world complex queries. The framework features specialized agents that collaborate across four stages: query parsing and planning, landmark reasoning, multimodal retrieval, and reranked answer synthesis. A key component, the Landmark Knowledge Agent, detects cultural or spatial landmarks and reformulates them into descriptive visual prompts, enhancing CLIP-based semantic matching for Vietnamese scenes. To expand capabilities, we introduce an LLM-assisted image-to-image pipeline, where a large language model (Gemini 2.5 Flash) autonomously detects landmarks, generates image search queries, retrieves representative images, and performs CLIP-based visual similarity matching, removing the need for manual image input. In addition, an OCR refinement module leveraging Gemini and LlamaIndex improves Vietnamese text recognition. Experimental results show that LLandMark achieves adaptive, culturally grounded, and explainable retrieval performance.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-03-03T11:36:34Z</published>
+    <arxiv:comment>Accepted by AAAI 2026 Workshop on New Frontiers in Information Retrieval</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <arxiv:journal_ref>AAAI 2026 Workshop on New Frontiers in Information Retrieval</arxiv:journal_ref>
+    <author>
+      <name>Minh-Chi Phung</name>
+    </author>
+    <author>
+      <name>Thien-Bao Le</name>
+    </author>
+    <author>
+      <name>Cam-Tu Tran-Thi</name>
+    </author>
+    <author>
+      <name>Thu-Dieu Nguyen-Thi</name>
+    </author>
+    <author>
+      <name>Vu-Hung Dao</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.01556v1</id>
+    <title>Retrieved but not ranked: surface-form bias in structural retrieval, from mathematics to agent trajectories</title>
+    <updated>2026-09-01T17:19:57Z</updated>
+    <link href="https://arxiv.org/abs/2609.01556v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.01556v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We evaluate embedding retrieval where surface form and meaning are pulled apart on purpose: retrieving items that share underlying structure but not wording, in two unrelated domains under one protocol, competition mathematics (MathNet-Retrieve; 500 queries, 117,088-item corpus) and embodied-agent trajectories (ALFWorld-derived; 118 queries, 336 trajectories). In mathematics the failure is complete: strict Hit@1 at the heaviest disguise tier is 0.0% for both production embedders (bootstrap 95% CI [0.0, 0.0]) while the correct item sits in the top 10 nearly always, and in 95.2 to 99.8% of misses the winner is more lexically similar to the query than the correct answer. In trajectories, where surface variation is incidental, the same models land at or near hypergeometric chance when gold must involve a different object, and below chance for all three embedders once gold must differ in object and receptacle: retrieval anchors on literal tokens, not task structure. A lexical reranker control hurts in mathematics and helps in trajectories (closing 26 to 36% of the gap, CIs excluding zero); its sign reveals whether a benchmark's surface variation is adversarial or incidental. An LLM reranker recovers 5 to 63% of the gap in mathematics and 43 to 76% in trajectories; direction replicates across three judges (all 21 cells positive), but effect sizes, tier profiles, and the outlier judge change with domain (paired differences excluding zero everywhere). Mathematics gains concentrate on well-known competitions (+19.8 points, CI [+6.7, +33.2], one of six cells), so part of the recovery is memorization. In a paired downstream experiment (210 queries, graders at 96 to 99% agreement), oracle retrieval was indistinguishable from adversarially bad retrieval (McNemar p = 0.678); the solver's 69.5% zero-shot accuracy is largely a truncation proxy (97 to 100% on finished answers), leaving no headroom.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-01T17:19:57Z</published>
+    <arxiv:comment>18 pages, 3 figures, code at https://github.com/nabirarashid/structural-retrieval</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Nabira Rashid</name>
+    </author>
+    <author>
+      <name>Manolis Kellis</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.07863v1</id>
+    <title>Task-Adaptive Retrieval over Agentic Multi-Modal Web Histories via Learned Graph Memory</title>
+    <updated>2026-04-09T06:24:16Z</updated>
+    <link href="https://arxiv.org/abs/2604.07863v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.07863v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Retrieving relevant observations from long multi-modal web interaction histories is challenging because relevance depends on the evolving task state, modality (screenshots, HTML text, structured signals), and temporal distance. Prior approaches typically rely on static similarity thresholds or fixed-capacity buffers, which fail to adapt relevance to the current task context. We propose \textbf{ACGM}, a learned graph-memory retriever that constructs \emph{task-adaptive} relevance graphs over agent histories using policy-gradient optimization from downstream task success. ACGM captures heterogeneous temporal dynamics with modality-specific decay (visual decays $4.3\times$ faster than text: $λ_v{=}0.47$ vs.\ $λ_x{=}0.11$) and learns sparse connectivity (3.2 edges/node), enabling efficient $O(\log T)$ retrieval. Across WebShop, VisualWebArena, and Mind2Web, ACGM improves retrieval quality to \textbf{82.7 nDCG@10} (+9.3 over GPT-4o, $p{&lt;}0.001$) and \textbf{89.2\% Precision@10} (+7.7), outperforming 19 strong dense, re-ranking, multi-modal, and graph-based baselines. Code to reproduce our results is available at{\color{blue}\href{https://github.com/S-Forouzandeh/ACGM-Agentic-Web}{Saman Forouzandeh}}.</summary>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-09T06:24:16Z</published>
+    <arxiv:comment>The 49th International ACM SIGIR Conference on Research and Development in Information Retrieval</arxiv:comment>
+    <arxiv:primary_category term="cs.IR"/>
+    <author>
+      <name>Saman Forouzandeh</name>
+    </author>
+    <author>
+      <name>Kamal Berahmand</name>
+    </author>
+    <author>
+      <name>Mahdi Jalili</name>
+    </author>
+  </entry>
+</feed>

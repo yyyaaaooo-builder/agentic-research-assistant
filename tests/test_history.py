@@ -18,9 +18,7 @@ from research_assistant.core.message import Message
             id="empty_content",
         ),
         pytest.param(
-            Message(
-                role="assistant", tool_calls=[{"id": "call_1", "function": {"name": "calculator"}}]
-            ),
+            Message(role="assistant", tool_calls=[{"id": "call_1", "function": {"name": "calculator"}}]),
             {
                 "role": "assistant",
                 "tool_calls": [{"id": "call_1", "function": {"name": "calculator"}}],
