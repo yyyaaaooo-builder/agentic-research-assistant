@@ -19,10 +19,13 @@ or when the results do not cover part of the question.
 - Be concise.
 """
 
-# Sent when an agent uses all its steps. Kept product-neutral so any agent can use it:
-# the citation format comes from that agent's own system prompt.
+# Sent when an agent hits any budget (steps, tool calls, or time). Kept product-neutral so any
+# agent can use it: the citation format comes from that agent's own system prompt.
 FINAL_ANSWER_PROMPT = (
-    "You have used all your tool steps. Answer the original question now, using only the "
+    "You can't use tools any more. Answer the original question now, using only the "
     "information gathered above and citing sources as instructed. If that information is "
     "not enough to answer fully, say what is missing instead of filling the gaps."
 )
+
+# Returned in place of a tool result when the run's tool-call budget is already used up.
+TOOL_BUDGET_EXHAUSTED = "Error: this tool call was not run because the tool-call budget for this run is used up."

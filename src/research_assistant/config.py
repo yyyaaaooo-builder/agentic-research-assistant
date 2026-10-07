@@ -8,6 +8,8 @@ class Config(BaseSettings):
     api_key: str = Field(validation_alias="OPENROUTER_API_KEY")
     model_id: str
     max_steps: int
+    max_tool_calls: int
+    max_run_seconds: float
     max_tokens: int
     temperature: float
     timeout: int

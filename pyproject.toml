@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-research-assistant = "research_assistant:main"
+ask = "research_assistant.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.29,<0.12.0"]
