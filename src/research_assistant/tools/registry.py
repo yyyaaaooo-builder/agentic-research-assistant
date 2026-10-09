@@ -57,5 +57,5 @@ class ToolRegistry:
         try:
             return tool.run(**parsed)
         except Exception:
-            logger.exception("Tool %r crashed with arguments %r", name, parsed)
+            logger.exception(f"Tool {name!r} crashed with arguments {parsed!r}")
             return f"Error: tool {name!r} failed unexpectedly."

@@ -103,7 +103,7 @@ class ReActAgent:
         Always returns an answer: if any budget runs out (steps, tool calls, or time), the
         agent makes one final call without tools and answers from what it has gathered so far.
         """
-        logger.info("Starting run: %s", question)
+        logger.info(f"Starting run: {question}")
         run_started = time.perf_counter()
         tool_schemas = self._registry.to_openai_tools()
         history = self._create_history(question)
@@ -114,7 +114,7 @@ class ReActAgent:
         answer = ""
 
         for step_number in range(1, self._max_steps + 1):
-            logger.info("Step %d/%d", step_number, self._max_steps)
+            logger.info(f"Step {step_number}/{self._max_steps}")
 
             # Time budget check: don't start another LLM call once the run is out of time.
             if time.perf_counter() - run_started >= self._max_run_seconds:
@@ -146,7 +146,7 @@ class ReActAgent:
             answer = self._request_final_answer(history, steps, stop_reason)
 
         run_seconds = time.perf_counter() - run_started
-        logger.info("Run finished: %s after %d steps in %.1fs", stop_reason, len(steps), run_seconds)
+        logger.info(f"Run finished: {stop_reason} after {len(steps)} steps in {run_seconds:.1f}s")
         return RunResult(
             question=question,
             answer=answer,
@@ -171,7 +171,7 @@ class ReActAgent:
     def _invoke_tool(self, tool_call) -> ToolCallRecord:
         """Run one tool call through the registry; record its arguments, result, and duration."""
         name, arguments = tool_call.function.name, tool_call.function.arguments
-        logger.info("Tool call: %s(%s)", name, arguments)
+        logger.info(f"Tool call: {name}({arguments})")
         started = time.perf_counter()
         result = self._registry.invoke(name, arguments)
         return ToolCallRecord(name, arguments, result, time.perf_counter() - started)
@@ -199,7 +199,7 @@ class ReActAgent:
 
     def _request_final_answer(self, history: History, steps: list[StepRecord], stop_reason: StopReason) -> str:
         """Ask for an answer without tools after a budget runs out; record that call as a step."""
-        logger.warning("Stopped by %s; requesting a final answer without tools", stop_reason)
+        logger.warning(f"Stopped by {stop_reason}; requesting a final answer without tools")
         history.add_user(FINAL_ANSWER_PROMPT)
         response, llm_seconds = self._call_llm(history)
         steps.append(_step_record(len(steps) + 1, llm_seconds, response, ()))

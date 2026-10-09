@@ -122,18 +122,18 @@ class SearchTool(Tool):
             return f"Error: max_results must be at least 1, but received {max_results!r}."
         max_results = min(max_results, MAX_RESULTS_LIMIT)
         search_label = ", ".join(f'"{term}"' for term in terms)
-        logger.info("Searching arXiv: terms=%s, max_results=%d, sort_by=%s", search_label, max_results, sort_by)
+        logger.info(f"Searching arXiv: terms={search_label}, max_results={max_results}, sort_by={sort_by}")
         try:
             url = self._build_url(terms, max_results, sort_by)
             papers = self._parse(self._fetch_with_retries(url))
         except (URLError, TimeoutError, ET.ParseError) as error:
-            logger.error("arXiv search failed for terms %s: %s", search_label, error)
+            logger.error(f"arXiv search failed for terms {search_label}: {error}")
             return f"Error: arXiv search failed ({error})."
         except ArxivQueryError as error:
-            logger.warning("arXiv rejected terms %s: %s", search_label, error)
+            logger.warning(f"arXiv rejected terms {search_label}: {error}")
             return f"Error: arXiv rejected the query ({error}). Use plain words or phrases as terms."
 
-        logger.info("arXiv returned %d papers for %s", len(papers), search_label)
+        logger.info(f"arXiv returned {len(papers)} papers for {search_label}")
         return self._format(papers, search_label)
 
     @staticmethod
@@ -181,12 +181,7 @@ class SearchTool(Tool):
             except (URLError, TimeoutError) as error:
                 if not _is_transient(error) or attempt == MAX_FETCH_ATTEMPTS:
                     raise
-                logger.warning(
-                    "arXiv request failed (attempt %d/%d): %s. Retrying.",
-                    attempt,
-                    MAX_FETCH_ATTEMPTS,
-                    error,
-                )
+                logger.warning(f"arXiv request failed (attempt {attempt}/{MAX_FETCH_ATTEMPTS}): {error}. Retrying.")
 
     @staticmethod
     def _parse(xml_data: bytes) -> list[dict]:
