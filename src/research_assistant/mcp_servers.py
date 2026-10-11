@@ -19,5 +19,6 @@ MCP_SERVERS: dict[str, McpServerConfig] = {
                 "Returns a short confirmation, not the paper's text."
             ),
         },
+        note_source={"read_paper_section": ("paper_id", "section_id")},
     )
 }

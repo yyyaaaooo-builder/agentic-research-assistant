@@ -31,6 +31,7 @@ class McpServerConfig:
     tools: tuple[str, ...]
     pinned_args: dict[str, dict] = field(default_factory=dict)
     descriptions: dict[str, str] = field(default_factory=dict)
+    note_source: dict[str, tuple[str, str]] = field(default_factory=dict)
 
 
 class McpConnection:

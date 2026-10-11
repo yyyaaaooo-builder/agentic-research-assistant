@@ -32,6 +32,7 @@ def main() -> None:
     logging.getLogger("httpx2").setLevel(logging.WARNING)
 
     config = Config()
+    note_source: dict[str, tuple[str, str]] = {}
     with ExitStack() as stack:
         registry = ToolRegistry()
         registry.register(SearchTool())
@@ -39,6 +40,7 @@ def main() -> None:
             server = MCP_SERVERS[name]
             connection = stack.enter_context(McpConnection(server))
             register_mcp_tools(registry, connection, server)
+            note_source.update(server.note_source)
 
         agent = ReActAgent(
             llm=LLMClient(config),
@@ -47,6 +49,8 @@ def main() -> None:
             system_prompt=RESEARCH_ASSISTANT_PROMPT,
             max_tool_calls=config.max_tool_calls,
             max_run_seconds=config.max_run_seconds,
+            note_source=note_source,
+            extraction_llm=LLMClient(config, model=config.extraction_model_id),
         )
 
         result = agent.run(args.question)

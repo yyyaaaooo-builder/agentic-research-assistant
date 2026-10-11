@@ -9,12 +9,18 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    def __init__(self, config: Config, max_retries: int = 3):
+    def __init__(self, config: Config, max_retries: int = 3, model: str | None = None):
         self._client = openai.OpenAI(base_url=config.base_url, api_key=config.api_key, timeout=config.timeout)
-        self._model = config.model_id
+        self._model = model or config.model_id
         self._max_retries = max_retries
 
-    def generate(self, messages: list[dict], tools: list[dict] | None = None):
+    def generate(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        response_format: dict | None = None,
+        max_tokens: int | None = None,
+    ):
         """
         Send one turn of the current agent run to the LLM and return its raw response.
         Retries on transient failures (timeout, rate limit, connection error)
@@ -24,11 +30,19 @@ class LLMClient:
             of the current `agent.run()` call so far.
         param: tools: optional list of OpenAI-format tool schemas currently
             available for the model to call this turn.
+        param: response_format: optional structured-output format, e.g. a JSON schema.
+        param: max_tokens: optional cap on the length of this one reply.
         return: the raw ChatCompletion response from the API
         """
         for attempt in range(self._max_retries):
             try:
-                response = self._client.chat.completions.create(model=self._model, messages=messages, tools=tools)
+                response = self._client.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    tools=tools,
+                    response_format=response_format,
+                    max_tokens=max_tokens,
+                )
                 logger.info(
                     f"prompt token: {response.usage.prompt_tokens}, response token: {response.usage.completion_tokens}."
                 )

@@ -27,6 +27,32 @@ compare, or what results show, read the full text of the 1–3 most relevant pap
 - Never invent citations, sections, or findings, and don't imply you covered the whole literature.
 """
 
+
+EXTRACTION_PROMPT = """\
+Extract evidence from one research paper section to help answer the question.
+You receive the question, working notes (numbered findings and open questions), and section text.
+
+New findings:
+- Record at most 5 important, relevant claims from this section that help answer the question \
+and are not already in the notes.
+- Write each claim as one specific, self-contained sentence. \
+Preserve method names, datasets, and reported numbers.
+- Distinguish this paper's contributions from prior work. \
+Attribute claims about prior work explicitly (e.g., "Prior work X reports ..."), or omit them.
+
+Links:
+- Link evidence that supports, contradicts, or qualifies an existing finding by its number.
+- Briefly summarize the evidence without restating the finding.
+
+Open questions:
+- Return the complete updated list (maximum 5) of unanswered questions relevant to the research question.
+- Remove questions resolved by this section.
+
+Use only the provided section as evidence. Do not invent claims, numbers, or relationships.
+If nothing new and relevant is added, return empty lists for new findings and links.
+"""
+
+
 # Sent when an agent hits any budget (steps, tool calls, or time). Kept product-neutral so any
 # agent can use it: the citation format comes from that agent's own system prompt.
 FINAL_ANSWER_PROMPT = (

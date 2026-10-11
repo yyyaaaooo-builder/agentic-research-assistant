@@ -1,9 +1,11 @@
+import json
 import logging
 import time
 from dataclasses import dataclass
 from typing import Literal
 
 from research_assistant.core.history import History
+from research_assistant.core.ledger import Ledger, extract, format_citation
 from research_assistant.llm.client import LLMClient
 from research_assistant.prompts import FINAL_ANSWER_PROMPT, TOOL_BUDGET_EXHAUSTED
 from research_assistant.tools.registry import ToolRegistry
@@ -80,6 +82,8 @@ class ReActAgent:
         system_prompt: str,
         max_tool_calls: int,
         max_run_seconds: float,
+        note_source: dict[str, tuple[str, str]] | None = None,
+        extraction_llm: LLMClient | None = None,
     ) -> None:
         if max_steps < 1:
             raise ValueError(f"max_steps (LLM calls per run) must be at least 1, but received {max_steps!r}.")
@@ -96,6 +100,33 @@ class ReActAgent:
         self._system_prompt = system_prompt
         self._max_tool_calls = max_tool_calls
         self._max_run_seconds = max_run_seconds
+        self._note_source = note_source or {}
+        self._extraction_llm = extraction_llm or llm
+
+    def _capture_notes(self, question: str, ledger: Ledger, tool_call, result: str) -> str:
+        """Turn a paper read into ledger notes and return the receipt that replaces its text in history.
+
+        Returns the result unchanged when the call is not a paper read or the extraction fails.
+        """
+        name = tool_call.function.name
+        if name not in self._note_source:
+            return result
+
+        if result.startswith("Error:"):
+            return result
+
+        paper_key, section_key = self._note_source[name]
+        arguments = json.loads(tool_call.function.arguments)
+        paper_id = arguments.get(paper_key, "")
+        section = str(arguments.get(section_key, ""))
+
+        extraction = extract(self._extraction_llm, question, ledger, result)
+        if extraction is None:
+            return result
+
+        changes = ledger.add(extraction, paper_id, section)
+        summary = " · ".join(changes) or "no new findings"
+        return f"{format_citation(paper_id, section)} → {summary}. Saved to notes; full text not kept."
 
     def run(self, question: str) -> RunResult:
         """Answer the question and return the answer with a record of every step.
@@ -107,6 +138,7 @@ class ReActAgent:
         run_started = time.perf_counter()
         tool_schemas = self._registry.to_openai_tools()
         history = self._create_history(question)
+        ledger = Ledger()
 
         steps: list[StepRecord] = []
         tool_calls_used = 0
@@ -122,7 +154,7 @@ class ReActAgent:
                 break
 
             # Reason: the model decides to answer or to call tools.
-            response, llm_seconds = self._call_llm(history, tool_schemas)
+            response, llm_seconds = self._call_llm(history, tool_schemas, ledger)
             reply = response.choices[0].message
 
             if not reply.tool_calls:
@@ -133,7 +165,7 @@ class ReActAgent:
 
             # Act: run the requested tools and feed their results back.
             calls_left = self._max_tool_calls - tool_calls_used
-            tool_records = self._execute_tool_requests(history, reply, calls_left)
+            tool_records = self._execute_tool_requests(history, question, ledger, reply, calls_left)
             tool_calls_used += len(tool_records)
             steps.append(_step_record(step_number, llm_seconds, response, tuple(tool_records)))
 
@@ -162,10 +194,16 @@ class ReActAgent:
         history.add_user(question)
         return history
 
-    def _call_llm(self, history: History, tool_schemas: list[dict] | None = None):
-        """Send the history to the model; return its response and how long the call took."""
+    def _call_llm(self, history: History, tool_schemas: list[dict] | None = None, ledger: Ledger | None = None):
+        """Send the history and current notes to the model; return its response and how long the call took.
+
+        The notes are added to this call only and are never saved to the history.
+        """
+        messages = history.to_openai_messages()
+        if ledger and ledger.findings:
+            messages.append({"role": "user", "content": ledger.render()})
         started = time.perf_counter()
-        response = self._llm.generate(history.to_openai_messages(), tools=tool_schemas)
+        response = self._llm.generate(messages, tools=tool_schemas)
         return response, time.perf_counter() - started
 
     def _invoke_tool(self, tool_call) -> ToolCallRecord:
@@ -176,7 +214,14 @@ class ReActAgent:
         result = self._registry.invoke(name, arguments)
         return ToolCallRecord(name, arguments, result, time.perf_counter() - started)
 
-    def _execute_tool_requests(self, history: History, reply, calls_left: int) -> list[ToolCallRecord]:
+    def _execute_tool_requests(
+        self,
+        history: History,
+        question: str,
+        ledger: Ledger,
+        reply,
+        calls_left: int,
+    ) -> list[ToolCallRecord]:
         """Run every tool call in the model's reply, up to calls_left, and add all results to history.
 
         Calls beyond calls_left are not run but still get a result, because the API needs
@@ -191,7 +236,7 @@ class ReActAgent:
             if len(records) < calls_left:
                 record = self._invoke_tool(tool_call)
                 records.append(record)
-                result = record.result
+                result = self._capture_notes(question, ledger, tool_call, record.result)
             else:
                 result = TOOL_BUDGET_EXHAUSTED
             history.add_tool_result(result, tool_call.id)

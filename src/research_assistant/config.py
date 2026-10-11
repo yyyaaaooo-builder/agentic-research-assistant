@@ -13,3 +13,4 @@ class Config(BaseSettings):
     max_tokens: int
     temperature: float
     timeout: int
+    extraction_model_id: str | None = None
