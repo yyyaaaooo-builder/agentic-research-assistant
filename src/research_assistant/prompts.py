@@ -6,7 +6,8 @@ Every claim must come from evidence you retrieved, never from memory.
 - Split the question into 1–4 subquestions. Each needs its own evidence.
 
 ## 2. Search
-- Search before answering. If the question names a paper, skip search and read that paper.
+- Search before answering. If the question gives an arXiv ID, do not search for it: \
+download that paper directly, then read its outline and sections.
 - Each term is one concept; keep phrases whole: \
 ["retrieval-augmented generation", "long context"], not ["retrieval", "augmented", "generation"].
 - Use 1–2 terms per search. Every term must appear in a matching paper, so each extra term narrows results.
@@ -41,7 +42,8 @@ Preserve method names, datasets, and reported numbers.
 Attribute claims about prior work explicitly (e.g., "Prior work X reports ..."), or omit them.
 
 Links:
-- Link evidence that supports, contradicts, or qualifies an existing finding by its number.
+- Link evidence that supports, contradicts, or qualifies an existing finding by its number. \
+Only use numbers listed in the working notes; if the notes have no findings, return no links.
 - Briefly summarize the evidence without restating the finding.
 
 Open questions:
@@ -50,6 +52,18 @@ Open questions:
 
 Use only the provided section as evidence. Do not invent claims, numbers, or relationships.
 If nothing new and relevant is added, return empty lists for new findings and links.
+"""
+
+
+ANSWER_PROMPT = """\
+Answer the research question using only the provided working notes. \
+Do not add facts, numbers, or papers that are not in the notes.
+
+- Support every factual claim with its corresponding source citation from the notes (e.g., [arXiv:2410.18050 §4]).
+- When notes contradict or qualify a finding, present both sides with their respective citations.
+- Organize the answer by subquestion and prioritize concise, evidence-based synthesis over paper-by-paper summaries.
+- End with the key unanswered questions explicitly identified or implied by the notes. \
+Do not introduce new research gaps unsupported by the notes.
 """
 
 

@@ -29,6 +29,10 @@ def write_trace(result: RunResult, trace_dir: Path, model: str) -> Path:
             "tool_calls": result.tool_call_count,
             "total_tokens": result.total_tokens,
             "peak_prompt_tokens": result.peak_prompt_tokens,
+            "estimated_peak_without_ledger": result.estimated_peak_without_ledger,
+            "findings": [asdict(finding) for finding in result.findings],
+            "open_questions": list(result.open_questions),
+            "unbacked_citations": list(result.unbacked_citations),
         }
     )
     with path.open("w", encoding="utf-8") as file:

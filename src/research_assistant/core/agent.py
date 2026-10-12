@@ -1,13 +1,13 @@
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from research_assistant.core.history import History
-from research_assistant.core.ledger import Ledger, extract, format_citation
+from research_assistant.core.ledger import Finding, Ledger, extract, format_citation, unbacked_citations
 from research_assistant.llm.client import LLMClient
-from research_assistant.prompts import FINAL_ANSWER_PROMPT, TOOL_BUDGET_EXHAUSTED
+from research_assistant.prompts import ANSWER_PROMPT, FINAL_ANSWER_PROMPT, TOOL_BUDGET_EXHAUSTED
 from research_assistant.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -17,12 +17,13 @@ StopReason = Literal["answered", "step_limit", "tool_call_limit", "time_limit"]
 
 @dataclass(frozen=True)
 class ToolCallRecord:
-    """One tool call the agent made during a run, and the result it got back."""
+    """One tool call the agent made during a run: what the tool returned, and what the history kept."""
 
     name: str
     arguments: str
-    result: str
+    tool_result: str
     seconds: float
+    history_result: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,9 @@ class RunResult:
     stop_reason: StopReason
     steps: tuple[StepRecord, ...]
     seconds: float
+    findings: tuple[Finding, ...] = ()
+    open_questions: tuple[str, ...] = ()
+    unbacked_citations: tuple[str, ...] = ()
 
     @property
     def peak_prompt_tokens(self) -> int:
@@ -57,6 +61,20 @@ class RunResult:
     @property
     def tool_call_count(self) -> int:
         return sum(len(step.tool_calls) for step in self.steps)
+
+    @property
+    def estimated_peak_without_ledger(self) -> int:
+        """The estimated peak prompt size had raw paper text stayed in history instead of being replaced."""
+        peak = 0
+        kept_out = 0
+        for step in self.steps:
+            peak = max(peak, step.prompt_tokens + kept_out // 4)
+            kept_out += sum(
+                len(call.tool_result) - len(call.history_result)
+                for call in step.tool_calls
+                if call.history_result is not None  # only calls whose result was replaced
+            )
+        return peak
 
 
 def _step_record(step: int, llm_seconds: float, response, tool_calls: tuple[ToolCallRecord, ...]) -> StepRecord:
@@ -102,31 +120,6 @@ class ReActAgent:
         self._max_run_seconds = max_run_seconds
         self._note_source = note_source or {}
         self._extraction_llm = extraction_llm or llm
-
-    def _capture_notes(self, question: str, ledger: Ledger, tool_call, result: str) -> str:
-        """Turn a paper read into ledger notes and return the receipt that replaces its text in history.
-
-        Returns the result unchanged when the call is not a paper read or the extraction fails.
-        """
-        name = tool_call.function.name
-        if name not in self._note_source:
-            return result
-
-        if result.startswith("Error:"):
-            return result
-
-        paper_key, section_key = self._note_source[name]
-        arguments = json.loads(tool_call.function.arguments)
-        paper_id = arguments.get(paper_key, "")
-        section = str(arguments.get(section_key, ""))
-
-        extraction = extract(self._extraction_llm, question, ledger, result)
-        if extraction is None:
-            return result
-
-        changes = ledger.add(extraction, paper_id, section)
-        summary = " · ".join(changes) or "no new findings"
-        return f"{format_citation(paper_id, section)} → {summary}. Saved to notes; full text not kept."
 
     def run(self, question: str) -> RunResult:
         """Answer the question and return the answer with a record of every step.
@@ -174,8 +167,14 @@ class ReActAgent:
                 stop_reason = "tool_call_limit"
                 break
 
-        if stop_reason != "answered":
+        if ledger.findings:
+            answer = self._answer_from_ledger(question, ledger, steps)
+        elif stop_reason != "answered":
             answer = self._request_final_answer(history, steps, stop_reason)
+
+        flagged = unbacked_citations(answer, ledger)
+        if flagged:
+            logger.warning(f"Answer cites sources not in the ledger: {flagged}")
 
         run_seconds = time.perf_counter() - run_started
         logger.info(f"Run finished: {stop_reason} after {len(steps)} steps in {run_seconds:.1f}s")
@@ -185,6 +184,9 @@ class ReActAgent:
             stop_reason=stop_reason,
             steps=tuple(steps),
             seconds=run_seconds,
+            findings=tuple(ledger.findings),
+            open_questions=tuple(ledger.open_questions),
+            unbacked_citations=tuple(flagged),
         )
 
     def _create_history(self, question: str) -> History:
@@ -205,14 +207,6 @@ class ReActAgent:
         started = time.perf_counter()
         response = self._llm.generate(messages, tools=tool_schemas)
         return response, time.perf_counter() - started
-
-    def _invoke_tool(self, tool_call) -> ToolCallRecord:
-        """Run one tool call through the registry; record its arguments, result, and duration."""
-        name, arguments = tool_call.function.name, tool_call.function.arguments
-        logger.info(f"Tool call: {name}({arguments})")
-        started = time.perf_counter()
-        result = self._registry.invoke(name, arguments)
-        return ToolCallRecord(name, arguments, result, time.perf_counter() - started)
 
     def _execute_tool_requests(
         self,
@@ -235,12 +229,60 @@ class ReActAgent:
         for tool_call in reply.tool_calls:
             if len(records) < calls_left:
                 record = self._invoke_tool(tool_call)
+                result = self._capture_notes(question, ledger, tool_call, record.tool_result)
+                if result != record.tool_result:
+                    record = replace(record, history_result=result)
                 records.append(record)
-                result = self._capture_notes(question, ledger, tool_call, record.result)
             else:
                 result = TOOL_BUDGET_EXHAUSTED
             history.add_tool_result(result, tool_call.id)
         return records
+
+    def _invoke_tool(self, tool_call) -> ToolCallRecord:
+        """Run one tool call through the registry; record its arguments, result, and duration."""
+        name, arguments = tool_call.function.name, tool_call.function.arguments
+        logger.info(f"Tool call: {name}({arguments})")
+        started = time.perf_counter()
+        result = self._registry.invoke(name, arguments)
+        return ToolCallRecord(name=name, arguments=arguments, tool_result=result, seconds=time.perf_counter() - started)
+
+    def _capture_notes(self, question: str, ledger: Ledger, tool_call, result: str) -> str:
+        """Turn a paper read into ledger notes and return the receipt that replaces its text in history.
+
+        Returns the result unchanged when the call is not a paper read or the extraction fails.
+        """
+        name = tool_call.function.name
+        if name not in self._note_source:
+            return result
+
+        if result.startswith("Error:"):
+            return result
+
+        paper_key, section_key = self._note_source[name]
+        arguments = json.loads(tool_call.function.arguments)
+        paper_id = arguments.get(paper_key, "")
+        section = str(arguments.get(section_key, ""))
+
+        extraction = extract(self._extraction_llm, question, ledger, result)
+        if extraction is None:
+            return result
+
+        changes = ledger.add(extraction, paper_id, section)
+        summary = " · ".join(changes) or "no new findings"
+        return f"{format_citation(paper_id, section)} → {summary}. Saved to notes; full text not kept."
+
+    def _answer_from_ledger(self, question: str, ledger: Ledger, steps: list[StepRecord]) -> str:
+        """Write the final answer from the question and the ledger alone, and record that call as a step."""
+        messages = [
+            {"role": "system", "content": ANSWER_PROMPT},
+            {"role": "user", "content": f"Question: {question}\n\n{ledger.render()}"},
+        ]
+
+        started = time.perf_counter()
+        response = self._llm.generate(messages)
+        llm_seconds = time.perf_counter() - started
+        steps.append(_step_record(len(steps) + 1, llm_seconds, response, ()))
+        return response.choices[0].message.content or ""
 
     def _request_final_answer(self, history: History, steps: list[StepRecord], stop_reason: StopReason) -> str:
         """Ask for an answer without tools after a budget runs out; record that call as a step."""

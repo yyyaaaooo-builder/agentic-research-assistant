@@ -1,6 +1,7 @@
 """The evidence ledger: what the agent has learned, with sources and links between findings."""
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -10,10 +11,11 @@ from research_assistant.llm.client import LLMClient
 from research_assistant.prompts import EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
-Relation = Literal["supports", "contradicts", "qualifies"]
 
+Relation = Literal["supports", "contradicts", "qualifies"]
 MAX_NEW_FINDINGS = 5  # per section: keeps each read's contribution to the notes small
 EXTRACTION_MAX_TOKENS = 3000
+CITATION_PATTERN = re.compile(r"arXiv:\s*(\d{4}\.\d{4,5})(?:v\d+)?\]?(?:\s*§\s*(\w+(?:\.\w+)*))?")
 
 
 def format_citation(paper_id: str, section: str) -> str:
@@ -162,3 +164,18 @@ def _log_extraction_reply(response, reply: str) -> None:
         f"Extraction reply: {completion} tokens (reasoning {reasoning}), "
         f"finish={response.choices[0].finish_reason}, {len(reply):,} chars"
     )
+
+
+def unbacked_citations(answer: str, ledger: Ledger) -> list[str]:
+    """Citations in the answer that no finding or evidence in the ledger comes from."""
+    sources = {(finding.paper_id, finding.section) for finding in ledger.findings}
+    sources |= {(evidence.paper_id, evidence.section) for finding in ledger.findings for evidence in finding.evidence}
+    papers = {paper_id for paper_id, _ in sources}
+
+    unbacked: list[str] = []
+    for paper, section in CITATION_PATTERN.findall(answer):
+        backed = (paper, section) in sources if section else paper in papers
+        citation = format_citation(paper, section)
+        if not backed and citation not in unbacked:
+            unbacked.append(citation)
+    return unbacked
