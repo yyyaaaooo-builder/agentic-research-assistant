@@ -8,14 +8,16 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from research_assistant.llm.client import LLMClient
-from research_assistant.prompts import EXTRACTION_PROMPT
+from research_assistant.prompts import ANSWER_PROMPT, EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
 
 Relation = Literal["supports", "contradicts", "qualifies"]
 MAX_NEW_FINDINGS = 5  # per section: keeps each read's contribution to the notes small
 EXTRACTION_MAX_TOKENS = 3000
+
 CITATION_PATTERN = re.compile(r"arXiv:\s*(\d{4}\.\d{4,5})(?:v\d+)?\]?(?:\s*§\s*(\w+(?:\.\w+)*))?")
+FOOTNOTE_PATTERN = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
 
 def format_citation(paper_id: str, section: str) -> str:
@@ -120,6 +122,31 @@ class Ledger:
                 lines.append(f"- {question}")
         return "\n".join(lines)
 
+    def render_sources(self, cited_ids: list[int]) -> str:
+        """Render the sources of the findings an answer cites.
+        Each line gives a finding's own citation, then the citation of each piece of linked evidence:
+
+            **Sources**
+            - [1] arXiv:2610.13504 §5
+            - [2] arXiv:2610.13504 §5; contradicts: arXiv:2609.01234 §4.2
+        """
+        findings_by_id = {finding.id: finding for finding in self.findings}
+        source_lines = []
+
+        for finding_id in cited_ids:
+            finding = findings_by_id.get(finding_id)
+            if finding is None:
+                continue
+
+            line = f"- [{finding.id}] {finding.citation}"
+            for evidence in finding.evidence:
+                line += f"; {evidence.relation}: {evidence.citation}"
+            source_lines.append(line)
+
+        if not source_lines:
+            return ""
+        return "\n\n**Sources**\n" + "\n".join(source_lines)
+
 
 def extract(llm: LLMClient, question: str, ledger: Ledger, section_text: str) -> ExtractionResult | None:
     """Extract what one paper section adds to the ledger, or None if the reply is unusable."""
@@ -154,6 +181,15 @@ def extract(llm: LLMClient, question: str, ledger: Ledger, section_text: str) ->
     return result
 
 
+def write_answer_from_ledger(llm: LLMClient, question: str, ledger: Ledger):
+    """Answer the question from the ledger's findings alone and return the model's response."""
+    messages = [
+        {"role": "system", "content": ANSWER_PROMPT},
+        {"role": "user", "content": f"Question: {question}\n\n{ledger.render()}"},
+    ]
+    return llm.generate(messages)
+
+
 def _log_extraction_reply(response, reply: str) -> None:
     """Log how long an extraction reply was, including any hidden reasoning tokens, and why it ended."""
     usage = response.usage
@@ -166,15 +202,25 @@ def _log_extraction_reply(response, reply: str) -> None:
     )
 
 
-def unbacked_citations(answer: str, ledger: Ledger) -> list[str]:
-    """Citations in the answer that no finding or evidence in the ledger comes from."""
-    sources = {(finding.paper_id, finding.section) for finding in ledger.findings}
-    sources |= {(evidence.paper_id, evidence.section) for finding in ledger.findings for evidence in finding.evidence}
-    papers = {paper_id for paper_id, _ in sources}
+def cited_finding_ids(answer: str) -> list[int]:
+    """Finding IDs cited in the answer's footnotes, such as [2] or [1, 3], sorted and without repeats."""
+    footnotes = FOOTNOTE_PATTERN.findall(answer)
+    cited_ids = {int(number) for footnote in footnotes for number in footnote.split(",")}
+    return sorted(cited_ids)
 
-    unbacked: list[str] = []
+
+def unbacked_citations(answer: str, ledger: Ledger) -> list[str]:
+    """Citations in the answer that the ledger can't back: unknown finding IDs, or sources no finding comes from."""
+    ledger_sources = {(finding.paper_id, finding.section) for finding in ledger.findings}
+    ledger_sources |= {
+        (evidence.paper_id, evidence.section) for finding in ledger.findings for evidence in finding.evidence
+    }
+    ledger_papers = {paper_id for paper_id, _ in ledger_sources}
+    finding_ids = {finding.id for finding in ledger.findings}
+    unbacked = [f"[{finding_id}]" for finding_id in cited_finding_ids(answer) if finding_id not in finding_ids]
+
     for paper, section in CITATION_PATTERN.findall(answer):
-        backed = (paper, section) in sources if section else paper in papers
+        backed = (paper, section) in ledger_sources if section else paper in ledger_papers
         citation = format_citation(paper, section)
         if not backed and citation not in unbacked:
             unbacked.append(citation)

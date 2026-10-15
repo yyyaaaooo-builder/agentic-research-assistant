@@ -59,11 +59,26 @@ ANSWER_PROMPT = """\
 Answer the research question using only the provided working notes. \
 Do not add facts, numbers, or papers that are not in the notes.
 
-- Support every factual claim with its corresponding source citation from the notes (e.g., [arXiv:2410.18050 §4]).
+- Cite every factual claim with the number of the finding it comes from, e.g. [2] or [1, 3]. \
+Do not write paper IDs or a reference list; the sources are added automatically.
 - When notes contradict or qualify a finding, present both sides with their respective citations.
 - Organize the answer by subquestion and prioritize concise, evidence-based synthesis over paper-by-paper summaries.
 - End with the key unanswered questions explicitly identified or implied by the notes. \
 Do not introduce new research gaps unsupported by the notes.
+"""
+
+
+BRIEF_PROMPT = """\
+Plan the research to answer a question using arXiv papers.
+
+Sub-questions:
+- Generate 1–3 sub-questions; prefer fewer when sufficient.
+- Make each self-contained, answerable independently, and understandable with only its text and the scope.
+- Cover distinct, complementary aspects, such as methods, evaluation, or limitations, without overlapping.
+- If the question names a paper or arXiv ID, include its name or ID in each relevant sub-question.
+
+Scope:
+- In one sentence, define what the research includes and excludes, based only on the question.
 """
 
 

@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 import time
 import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
@@ -97,7 +98,9 @@ class SearchTool(Tool):
         },
         "required": ["terms"],
     }
+
     _last_request_time = 0.0
+    _rate_limit_lock = threading.Lock()
 
     def run(
         self,
@@ -150,14 +153,15 @@ class SearchTool(Tool):
 
     @classmethod
     def _wait_for_rate_limit(cls) -> None:
-        """Sleep if needed so arXiv requests are at least 3 seconds apart."""
-        elapsed = time.monotonic() - cls._last_request_time
-        remaining = MIN_SECONDS_BETWEEN_REQUESTS - elapsed
+        """Sleep if needed so arXiv requests are at least 3 seconds apart, one caller at a time."""
+        with cls._rate_limit_lock:
+            elapsed = time.monotonic() - cls._last_request_time
+            remaining = MIN_SECONDS_BETWEEN_REQUESTS - elapsed
 
-        if remaining > 0:
-            time.sleep(remaining)
+            if remaining > 0:
+                time.sleep(remaining)
 
-        cls._last_request_time = time.monotonic()
+            cls._last_request_time = time.monotonic()
 
     @staticmethod
     def _fetch(url: str) -> bytes:

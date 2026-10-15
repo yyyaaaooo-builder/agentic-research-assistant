@@ -5,9 +5,17 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 from research_assistant.core.history import History
-from research_assistant.core.ledger import Finding, Ledger, extract, format_citation, unbacked_citations
+from research_assistant.core.ledger import (
+    Finding,
+    Ledger,
+    cited_finding_ids,
+    extract,
+    format_citation,
+    unbacked_citations,
+    write_answer_from_ledger,
+)
 from research_assistant.llm.client import LLMClient
-from research_assistant.prompts import ANSWER_PROMPT, FINAL_ANSWER_PROMPT, TOOL_BUDGET_EXHAUSTED
+from research_assistant.prompts import FINAL_ANSWER_PROMPT, TOOL_BUDGET_EXHAUSTED
 from research_assistant.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -175,6 +183,7 @@ class ReActAgent:
         flagged = unbacked_citations(answer, ledger)
         if flagged:
             logger.warning(f"Answer cites sources not in the ledger: {flagged}")
+        answer += ledger.render_sources(cited_finding_ids(answer))
 
         run_seconds = time.perf_counter() - run_started
         logger.info(f"Run finished: {stop_reason} after {len(steps)} steps in {run_seconds:.1f}s")
@@ -272,14 +281,9 @@ class ReActAgent:
         return f"{format_citation(paper_id, section)} → {summary}. Saved to notes; full text not kept."
 
     def _answer_from_ledger(self, question: str, ledger: Ledger, steps: list[StepRecord]) -> str:
-        """Write the final answer from the question and the ledger alone, and record that call as a step."""
-        messages = [
-            {"role": "system", "content": ANSWER_PROMPT},
-            {"role": "user", "content": f"Question: {question}\n\n{ledger.render()}"},
-        ]
-
+        """Write the final answer from the ledger and record that model call as a step."""
         started = time.perf_counter()
-        response = self._llm.generate(messages)
+        response = write_answer_from_ledger(self._llm, question, ledger)
         llm_seconds = time.perf_counter() - started
         steps.append(_step_record(len(steps) + 1, llm_seconds, response, ()))
         return response.choices[0].message.content or ""
