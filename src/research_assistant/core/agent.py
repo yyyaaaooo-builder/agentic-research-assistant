@@ -129,11 +129,12 @@ class ReActAgent:
         self._note_source = note_source or {}
         self._extraction_llm = extraction_llm or llm
 
-    def run(self, question: str) -> RunResult:
+    def run(self, question: str, write_final_answer: bool = True) -> RunResult:
         """Answer the question and return the answer with a record of every step.
 
-        Always returns an answer: if any budget runs out (steps, tool calls, or time), the
-        agent makes one final call without tools and answers from what it has gathered so far.
+        Write the final answer from ledger findings if available; otherwise, when a budget runs out,
+        make one final tool-free call. Set write_final_answer=False to skip the final answer call
+        when only the findings are needed, as for a supervisor's workers.
         """
         logger.info(f"Starting run: {question}")
         run_started = time.perf_counter()
@@ -175,10 +176,11 @@ class ReActAgent:
                 stop_reason = "tool_call_limit"
                 break
 
-        if ledger.findings:
-            answer = self._answer_from_ledger(question, ledger, steps)
-        elif stop_reason != "answered":
-            answer = self._request_final_answer(history, steps, stop_reason)
+        if write_final_answer:
+            if ledger.findings:
+                answer = self._answer_from_ledger(question, ledger, steps)
+            elif stop_reason != "answered":
+                answer = self._request_final_answer(history, steps, stop_reason)
 
         flagged = unbacked_citations(answer, ledger)
         if flagged:

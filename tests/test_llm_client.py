@@ -1,9 +1,12 @@
+import os
+
 import pytest
 
 from research_assistant.config import Config
 from research_assistant.llm.client import LLMClient
 
 
+@pytest.mark.skipif(not os.getenv("RUN_LIVE_TESTS"), reason="makes a live LLM request; set RUN_LIVE_TESTS=1")
 def test_generate_returns_content():
     try:
         config = Config()

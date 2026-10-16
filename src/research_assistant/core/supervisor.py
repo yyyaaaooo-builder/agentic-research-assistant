@@ -137,7 +137,7 @@ class Supervisor:
         logger.info(f"Worker {index}/{len(brief.sub_questions)}: {sub_question}")
         task = format_worker_task(sub_question, brief.scope)
         try:
-            result = self._worker.run(task)
+            result = self._worker.run(task, write_final_answer=False)
         except Exception:
             logger.exception(f"Worker {index}/{len(brief.sub_questions)} failed; continuing without its findings")
             return None
