@@ -1,4 +1,5 @@
 import io
+import json
 import re
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -49,7 +50,13 @@ def clock(monkeypatch):
 def tool(monkeypatch):
     search_tool = SearchTool()
     monkeypatch.setattr(search_tool, "_wait_for_rate_limit", lambda: None)
+    # Keep tests offline: the OpenAlex fallback fails unless a test replaces it.
+    monkeypatch.setattr(search_tool, "_search_openalex", fail_openalex)
     return search_tool
+
+
+def fail_openalex(terms, max_results, sort_by):
+    raise URLError("fallback unavailable")
 
 
 def make_paper(**fields) -> dict:
@@ -362,13 +369,13 @@ def test_run_rejects_bad_input(tool, arguments, expected):
         ),
         pytest.param(
             [http_error(404)],
-            "Error: arXiv search failed (HTTP Error 404: test error).",
+            "Error: arXiv search failed (HTTP Error 404: test error), and so did the fallback search",
             1,
             id="permanent-error",
         ),
         pytest.param(
             [http_error(503)] * MAX_FETCH_ATTEMPTS,
-            "Error: arXiv search failed (HTTP Error 503: test error).",
+            "Error: arXiv search failed (HTTP Error 503: test error), and so did the fallback search",
             MAX_FETCH_ATTEMPTS,
             id="never-recovers",
         ),
@@ -388,3 +395,44 @@ def test_run_handles_fetch_outcomes(tool, fetch, outcomes, expected_start, expec
 
     assert result.startswith(expected_start)
     assert len(fetch.urls) == expected_calls
+
+
+def test_run_falls_back_to_openalex_when_arxiv_fails(tool, fetch, monkeypatch):
+    fetch.respond_with(*[http_error(429)] * MAX_FETCH_ATTEMPTS)
+    monkeypatch.setattr(tool, "_search_openalex", lambda terms, max_results, sort_by: [make_paper(id="2604.26622")])
+
+    result = tool.run(terms=["agent memory"])
+
+    assert result.startswith("Found 1 papers")
+    assert "arXiv: 2604.26622" in result
+
+
+def test_search_openalex_returns_arxiv_papers_without_repeats(monkeypatch):
+    def work(url, **fields):
+        return {"locations": [{"landing_page_url": url}], **fields}
+
+    works = [
+        work(
+            "https://arxiv.org/abs/2604.26622",
+            title="OCR-Memory",
+            publication_date="2026-04-29",
+            authorships=[{"author": {"display_name": "Xin Yang (104842)"}}],
+            abstract_inverted_index={"agents": [1], "Autonomous": [0]},
+        ),
+        work("https://doi.org/10.48550/arxiv.2604.26622", title="OCR-Memory (second record)"),
+        work("https://example.org/not-arxiv", title="Not on arXiv"),
+    ]
+    payload = io.BytesIO(json.dumps({"results": works}).encode())
+    monkeypatch.setattr("research_assistant.tools.search.urlopen", lambda request, timeout: payload)
+
+    papers = SearchTool._search_openalex(["agent memory"], max_results=5, sort_by="relevance")
+
+    assert papers == [
+        {
+            "id": "2604.26622",
+            "title": "OCR-Memory",
+            "authors": ["Xin Yang"],
+            "date": "2026-04-29",
+            "abstract": "Autonomous agents",
+        }
+    ]

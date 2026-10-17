@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import threading
@@ -27,6 +28,13 @@ MAX_AUTHORS_SHOWN = 3
 DEFAULT_MAX_RESULTS = 5
 MAX_RESULTS_LIMIT = 10
 
+# Fallback index when arXiv's search API fails (it rate-limits heavy use): OpenAlex, limited to arXiv-hosted papers.
+OPENALEX_API_URL = "https://api.openalex.org/works"
+OPENALEX_ARXIV_SOURCE_ID = "S4306400194"  # OpenAlex's ID for the arXiv repository
+OPENALEX_SORT_OPTIONS = {"relevance": "relevance_score:desc", "recent": "publication_date:desc"}
+# Matches arXiv IDs in both OpenAlex URL forms: arxiv.org/abs/2604.26622 and doi.org/10.48550/arxiv.2604.26622
+ARXIV_ID_PATTERN = re.compile(r"arxiv[./](?:org/abs/)?(\d{4}\.\d{4,5})", re.IGNORECASE)
+
 
 def _normalize_whitespace(text: str) -> str:
     """Collapse runs of spaces and line breaks into single spaces."""
@@ -46,6 +54,23 @@ def _is_transient(error: Exception) -> bool:
     if isinstance(error, HTTPError):
         return error.code in TRANSIENT_HTTP_CODES
     return True
+
+
+def _rebuild_abstract(inverted_index: dict[str, list[int]] | None) -> str:
+    """Abstract text rebuilt from OpenAlex's index of each word's positions."""
+    if not inverted_index:
+        return ""
+    words_by_position = {position: word for word, positions in inverted_index.items() for position in positions}
+    return " ".join(words_by_position[position] for position in sorted(words_by_position))
+
+
+def _arxiv_id_from_openalex(work: dict) -> str:
+    """arXiv ID of an OpenAlex work from its arXiv location URL, or "" if it has none."""
+    for location in work.get("locations") or []:
+        match = ARXIV_ID_PATTERN.search(location.get("landing_page_url") or "")
+        if match:
+            return match.group(1)
+    return ""
 
 
 def _read_tag(element: ET.Element, tag: str) -> str:
@@ -130,8 +155,14 @@ class SearchTool(Tool):
             url = self._build_url(terms, max_results, sort_by)
             papers = self._parse(self._fetch_with_retries(url))
         except (URLError, TimeoutError, ET.ParseError) as error:
-            logger.error(f"arXiv search failed for terms {search_label}: {error}")
-            return f"Error: arXiv search failed ({error})."
+            logger.warning(f"arXiv search failed for terms {search_label}: {error}. Falling back to OpenAlex.")
+            try:
+                papers = self._search_openalex(terms, max_results, sort_by)
+            except (URLError, TimeoutError, ValueError) as fallback_error:
+                logger.error(f"OpenAlex fallback failed for terms {search_label}: {fallback_error}")
+                return f"Error: arXiv search failed ({error}), and so did the fallback search ({fallback_error})."
+            logger.info(f"OpenAlex returned {len(papers)} arXiv papers for {search_label}")
+            return self._format(papers, search_label)
         except ArxivQueryError as error:
             logger.warning(f"arXiv rejected terms {search_label}: {error}")
             return f"Error: arXiv rejected the query ({error}). Use plain words or phrases as terms."
@@ -205,6 +236,39 @@ class SearchTool(Tool):
             }
             papers.append(paper)
         return papers
+
+    @staticmethod
+    def _search_openalex(terms: list[str], max_results: int, sort_by: str) -> list[dict]:
+        """Search OpenAlex for arXiv-hosted papers, returned in the same shape as _parse's papers."""
+        params = {
+            "search": " ".join(terms),
+            "filter": f"locations.source.id:{OPENALEX_ARXIV_SOURCE_ID}",
+            "sort": OPENALEX_SORT_OPTIONS[sort_by],
+            # OpenAlex can list one arXiv paper twice, so fetch extra and drop repeats below.
+            "per-page": max_results * 2,
+            "select": "title,publication_date,authorships,locations,abstract_inverted_index",
+        }
+        request = Request(f"{OPENALEX_API_URL}?{urlencode(params)}", headers=REQUEST_HEADERS)
+        with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            works = json.loads(response.read())["results"]
+
+        papers_by_id = {}
+        for work in works:
+            arxiv_id = _arxiv_id_from_openalex(work)
+            if not arxiv_id or arxiv_id in papers_by_id:
+                continue
+            papers_by_id[arxiv_id] = {
+                "id": arxiv_id,
+                "title": _normalize_whitespace(work.get("title") or ""),
+                # OpenAlex sometimes appends a disambiguation number to names, e.g. "Xin Yang (104842)".
+                "authors": [
+                    re.sub(r"\s*\(\d+\)$", "", authorship["author"]["display_name"])
+                    for authorship in work.get("authorships") or []
+                ],
+                "date": work.get("publication_date") or "",
+                "abstract": _normalize_whitespace(_rebuild_abstract(work.get("abstract_inverted_index"))),
+            }
+        return list(papers_by_id.values())[:max_results]
 
     @staticmethod
     def _format(papers: list[dict], search_label: str) -> str:

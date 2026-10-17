@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 .claude/
 traces/
+evals/traces/
+evals/logs/

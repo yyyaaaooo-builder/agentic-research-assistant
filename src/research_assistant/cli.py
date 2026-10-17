@@ -94,3 +94,7 @@ def _report_multi_agent_research(result: ResearchResult, model: str) -> None:
         f" · {len(result.findings)} findings · {result.seconds:.1f}s"
     )
     print(f"Trace: {trace_path}")
+
+
+if __name__ == "__main__":
+    main()

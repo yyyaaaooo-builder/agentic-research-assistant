@@ -74,6 +74,7 @@ Plan the research to answer a question using arXiv papers.
 Sub-questions:
 - Generate 1–3 sub-questions; prefer fewer when sufficient.
 - Make each self-contained, answerable independently, and understandable with only its text and the scope.
+- Keep each sub-question short and plain: one focus, no lists of examples, no parenthetical asides.
 - Cover distinct, complementary aspects, such as methods, evaluation, or limitations, without overlapping.
 - If the question names a paper or arXiv ID, include its name or ID in each relevant sub-question.
 

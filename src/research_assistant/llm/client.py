@@ -8,6 +8,10 @@ from research_assistant.config import Config
 logger = logging.getLogger(__name__)
 
 
+class EmptyModelReplyError(Exception):
+    """The API returned a response with no reply, e.g. when the model's provider failed behind OpenRouter."""
+
+
 class LLMClient:
     def __init__(self, config: Config, max_retries: int = 3, model: str | None = None):
         self._client = openai.OpenAI(base_url=config.base_url, api_key=config.api_key, timeout=config.timeout)
@@ -43,11 +47,20 @@ class LLMClient:
                     response_format=response_format,
                     max_tokens=max_tokens,
                 )
-                logger.info(
-                    f"prompt token: {response.usage.prompt_tokens}, response token: {response.usage.completion_tokens}."
-                )
+                if not response.choices:
+                    raise EmptyModelReplyError(f"model returned no reply: {getattr(response, 'error', None)}")
+                usage = response.usage
+                if usage:
+                    logger.info(f"prompt token: {usage.prompt_tokens}, response token: {usage.completion_tokens}.")
+                else:
+                    logger.info("Model reply had no usage data; token counts unavailable for this call.")
                 return response
-            except (openai.APITimeoutError, openai.RateLimitError, openai.APIConnectionError) as e:
+            except (
+                openai.APITimeoutError,
+                openai.RateLimitError,
+                openai.APIConnectionError,
+                EmptyModelReplyError,
+            ) as e:
                 if attempt == self._max_retries - 1:
                     logger.error(f"LLM call failed after {self._max_retries} attempts: {e}")
                     raise
