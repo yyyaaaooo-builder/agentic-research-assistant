@@ -14,3 +14,4 @@ class Config(BaseSettings):
     temperature: float
     timeout: int
     extraction_model_id: str | None = None
+    judge_model_id: str | None = None

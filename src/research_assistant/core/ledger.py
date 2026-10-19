@@ -17,7 +17,11 @@ MAX_NEW_FINDINGS = 5  # per section: keeps each read's contribution to the notes
 EXTRACTION_MAX_TOKENS = 3000
 
 CITATION_PATTERN = re.compile(r"arXiv:\s*(\d{4}\.\d{4,5})(?:v\d+)?\]?(?:\s*§\s*(\w+(?:\.\w+)*))?")
-FOOTNOTE_PATTERN = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+# One cited ID or a range of IDs, e.g. 3 or 46–48 (hyphen or en dash).
+FOOTNOTE_ITEM = r"\d+(?:\s*[-–]\s*\d+)?"
+# A footnote of comma-separated items, e.g. [2], [1, 3], or [46–48].
+FOOTNOTE_PATTERN = re.compile(rf"\[({FOOTNOTE_ITEM}(?:\s*,\s*{FOOTNOTE_ITEM})*)\]")
+FOOTNOTE_RANGE_PATTERN = re.compile(r"(\d+)\s*[-–]\s*(\d+)")
 
 
 def format_citation(paper_id: str, section: str) -> str:
@@ -203,9 +207,16 @@ def _log_extraction_reply(response, reply: str) -> None:
 
 
 def cited_finding_ids(answer: str) -> list[int]:
-    """Finding IDs cited in the answer's footnotes, such as [2] or [1, 3], sorted and without repeats."""
-    footnotes = FOOTNOTE_PATTERN.findall(answer)
-    cited_ids = {int(number) for footnote in footnotes for number in footnote.split(",")}
+    """Finding IDs cited in the answer's footnotes, such as [2], [1, 3], or [46–48], sorted and without repeats."""
+    cited_ids = set()
+    for footnote in FOOTNOTE_PATTERN.findall(answer):
+        for item in footnote.split(","):
+            id_range = FOOTNOTE_RANGE_PATTERN.fullmatch(item.strip())
+            if id_range:
+                first_id, last_id = int(id_range.group(1)), int(id_range.group(2))
+                cited_ids.update(range(first_id, last_id + 1))
+            else:
+                cited_ids.add(int(item))
     return sorted(cited_ids)
 
 

@@ -72,9 +72,10 @@ BRIEF_PROMPT = """\
 Plan the research to answer a question using arXiv papers.
 
 Sub-questions:
-- Generate 1–3 sub-questions; prefer fewer when sufficient.
-- Make each self-contained, answerable independently, and understandable with only its text and the scope.
-- Keep each sub-question short and plain: one focus, no lists of examples, no parenthetical asides.
+- Generate 1–3 sub-questions based on the distinct, essential angles of the main question. 
+Do not split a narrow question for its own sake, and do not drop an important angle to keep the count low.
+- Make each self-contained, independently answerable, and understandable from its text and the scope alone.
+- Keep each short and plain, with one focus and no example lists or parenthetical asides.
 - Cover distinct, complementary aspects, such as methods, evaluation, or limitations, without overlapping.
 - If the question names a paper or arXiv ID, include its name or ID in each relevant sub-question.
 
@@ -93,3 +94,37 @@ FINAL_ANSWER_PROMPT = (
 
 # Returned in place of a tool result when the run's tool-call budget is already used up.
 TOOL_BUDGET_EXHAUSTED = "Error: this tool call was not run because the tool-call budget for this run is used up."
+
+
+JUDGE_COMPARISON_PROMPT = """\
+Compare two answers to the same research question. The answers are unlabeled; judge only their content.
+
+Assess each criterion separately:
+- Completeness: how well the answer covers the question's key requirements; \
+important aspects it omits count against it. Do not reward irrelevant or off-topic content.
+- Specificity: how concrete and verifiable the answer's claims are, such as \
+named methods, quantitative results, or explicit examples. Judge the precision \
+of the claims, not their number or the answer's length.
+
+For each criterion, select the stronger answer or "tie" if neither is meaningfully \
+better. Ignore length, formatting, and writing style.
+
+For each judgment, give a one-sentence reason identifying the single most \
+important difference between the answers.
+"""
+
+
+JUDGE_FAITHFULNESS_PROMPT = """\
+Determine whether every factual claim in the answer is supported by its cited findings.
+
+You receive the answer and its findings, numbered as cited (e.g., [3]).
+
+- Evaluate each distinct factual claim; ignore headings, transitions, and summaries \
+that add no new facts.
+- A claim is supported only if at least one cited finding directly supports it, \
+including its key details and qualifications.
+- Treat uncited claims and claims that are contradicted or not established by \
+their cited findings as unsupported. Use only the provided findings.
+
+If any claim is unsupported, quote one and explain why in one sentence; otherwise leave the example empty.
+"""

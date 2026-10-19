@@ -1,51 +1,43 @@
-"""Eval runner: answers every eval question with ask in single- and multi-agent modes and keeps each trace."""
+"""Eval runner: answers every eval question with ask in single- and multi-agent modes, saving one trace per run."""
 
 import argparse
 import json
 import logging
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-QUESTIONS_PATH = Path("evals/questions.jsonl")
-EVAL_TRACE_DIR = Path("evals/traces")
-EVAL_LOG_DIR = Path("evals/logs")
+EVALS_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[3]
+QUESTIONS_PATH = EVALS_DIR / "questions.jsonl"
+EVAL_TRACE_DIR = PROJECT_DIR / "traces" / "eval"  # one trace per question and mode, e.g. q1_single.jsonl
+EVAL_LOG_DIR = EVAL_TRACE_DIR / "logs"
 MODES = ("single", "multi")
-TRACE_LINE_PREFIX = "Trace: "  # the line ask prints with the path of the trace it saved
 RUN_TIMEOUT_SECONDS = 45 * 60  # stop a stuck run rather than block the whole eval
 
 
 def load_questions(path: Path) -> list[dict]:
-    """Eval questions from a JSONL file, one {"id", "kind", "question"} object per line."""
+    """Eval questions from a JSONL file, one {"id", "breadth", "question"} object per line."""
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def ask_command(question: str, mode: str) -> list[str]:
-    """Command line that runs ask on a question, adding --single for the single-agent mode."""
-    command = [sys.executable, "-m", "research_assistant.cli"]
+def ask_command(question: str, mode: str, trace_path: Path) -> list[str]:
+    """Command line that runs ask on a question and writes its trace to trace_path, with --single for single mode."""
+    command = [sys.executable, "-m", "research_assistant.cli", "--trace-file", str(trace_path)]
     if mode == "single":
         command.append("--single")
     command.append(question)
     return command
 
 
-def find_trace_path(ask_output: str) -> Path | None:
-    """Trace file path from the "Trace: …" line that ask prints, or None if it printed none."""
-    for line in ask_output.splitlines():
-        if line.startswith(TRACE_LINE_PREFIX):
-            return Path(line.removeprefix(TRACE_LINE_PREFIX))
-    return None
-
-
 def run_question(question: dict, mode: str, eval_trace_path: Path) -> bool:
-    """Run ask on one question in one mode and move its trace to eval_trace_path; return whether it succeeded."""
+    """Run ask on one question in one mode, writing its trace to eval_trace_path; return whether it succeeded."""
     log_path = EVAL_LOG_DIR / f"{question['id']}_{mode}.log"
     try:
         completed = subprocess.run(
-            ask_command(question["question"], mode),
+            ask_command(question["question"], mode, eval_trace_path),
             capture_output=True,
             text=True,
             timeout=RUN_TIMEOUT_SECONDS,
@@ -53,13 +45,10 @@ def run_question(question: dict, mode: str, eval_trace_path: Path) -> bool:
         EVAL_LOG_DIR.mkdir(parents=True, exist_ok=True)
         log_path.write_text(completed.stdout + completed.stderr, encoding="utf-8")
 
-        trace_path = find_trace_path(completed.stdout)
-        if completed.returncode != 0 or trace_path is None:
+        if completed.returncode != 0 or not eval_trace_path.exists():
             logger.error(f"{question['id']} {mode}: ask failed (exit {completed.returncode}); see {log_path}")
             return False
 
-        eval_trace_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(trace_path, eval_trace_path)
         logger.info(f"{question['id']} {mode}: saved {eval_trace_path}")
         return True
     except subprocess.TimeoutExpired:

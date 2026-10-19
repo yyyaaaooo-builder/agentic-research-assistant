@@ -66,9 +66,10 @@ def build_multi_agent_trace_lines(result: ResearchResult, model: str) -> list[di
     return lines
 
 
-def write_trace_file(trace_lines: list[dict], trace_dir: Path) -> Path:
-    """Write trace lines to a new JSONL file in trace_dir, one JSON object per line, and return its path."""
-    path = _create_path_for_tracing(trace_dir)
+def write_trace_file(trace_lines: list[dict], trace_dir: Path, trace_path: Path | None = None) -> Path:
+    """Write trace lines as JSONL to trace_path, or to a new time-stamped file in trace_dir, and return the path."""
+    path = trace_path or _create_path_for_tracing(trace_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as file:
         for line in trace_lines:
             file.write(json.dumps(line, ensure_ascii=False) + "\n")

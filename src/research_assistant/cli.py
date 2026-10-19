@@ -29,9 +29,14 @@ def main() -> None:
     )
     parser.add_argument("question", help="The research question to answer")
     parser.add_argument(
-        "--mcp", action="append", choices=list(MCP_SERVERS), help="MCP server to connect (repeatable). Default: arxiv."
+        "--mcp", action="append", choices=list(MCP_SERVERS), help="MCP server to connect. Default: arxiv."
     )
     parser.add_argument("--single", action="store_true", help="Answer with one agent instead of parallel workers.")
+    parser.add_argument(
+        "--trace-file",
+        type=Path,
+        help="Path to the output trace file. Defaults to a new timestamped file in traces/.",
+    )
     args = parser.parse_args()
     server_names = args.mcp or ["arxiv"]
 
@@ -62,14 +67,15 @@ def main() -> None:
         )
 
         if args.single:
-            _report_single_agent_run(agent.run(args.question), config.model_id)
+            _report_single_agent_run(agent.run(args.question), config.model_id, args.trace_file)
         else:
-            _report_multi_agent_research(Supervisor(llm=llm, worker=agent).research(args.question), config.model_id)
+            research = Supervisor(llm=llm, worker=agent).research(args.question)
+            _report_multi_agent_research(research, config.model_id, args.trace_file)
 
 
-def _report_single_agent_run(result: RunResult, model: str) -> None:
+def _report_single_agent_run(result: RunResult, model: str, trace_file: Path | None) -> None:
     """Save the run's trace, then print its answer and a one-line summary."""
-    trace_path = write_trace_file(build_agent_run_trace_lines(result, model), TRACE_DIR)
+    trace_path = write_trace_file(build_agent_run_trace_lines(result, model), TRACE_DIR, trace_file)
     tool_calls = result.tool_call_count
 
     print()
@@ -82,9 +88,9 @@ def _report_single_agent_run(result: RunResult, model: str) -> None:
     print(f"Trace: {trace_path}")
 
 
-def _report_multi_agent_research(result: ResearchResult, model: str) -> None:
+def _report_multi_agent_research(result: ResearchResult, model: str, trace_file: Path | None) -> None:
     """Save the research trace, then print its answer and a one-line summary of its brief, workers, and findings."""
-    trace_path = write_trace_file(build_multi_agent_trace_lines(result, model), TRACE_DIR)
+    trace_path = write_trace_file(build_multi_agent_trace_lines(result, model), TRACE_DIR, trace_file)
 
     print()
     print(result.answer)

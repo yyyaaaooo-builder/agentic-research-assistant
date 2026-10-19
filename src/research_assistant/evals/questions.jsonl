@@ -1,0 +1,8 @@
+{"id": "q1", "breadth": "broad", "question": "How do recent LLM agents manage long-context memory?"}
+{"id": "q2", "breadth": "broad", "question": "How are LLM agent workflows designed as graphs of steps instead of free-running loops?"}
+{"id": "q3", "breadth": "broad", "question": "How are world models trained to learn and simulate the dynamics of physical environments?"}
+{"id": "q4", "breadth": "broad", "question": "What reinforcement learning techniques are used to train LLM agents for multi-step tasks?"}
+{"id": "q5", "breadth": "broad", "question": "How do multi-agent LLM systems coordinate and divide work?"}
+{"id": "q6", "breadth": "narrow", "question": "How does reinforcement learning with verifiable rewards (RLVR) improve LLM reasoning, and what are its known limitations?"}
+{"id": "q7", "breadth": "narrow", "question": "What training stages and reinforcement learning methods does the Kimi K3 report (arXiv:2607.24653) describe?"}
+{"id": "q8", "breadth": "narrow", "question": "What does the ReAct paper (arXiv:2210.03629) show about combining reasoning and acting?"}
